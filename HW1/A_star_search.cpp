@@ -74,7 +74,7 @@ void A_star(const std::vector<tuple_item>& edges, std::unordered_map<char, doubl
             double g_prime = g[v] + l_vw;
             // Step 3.3.3.2. 2 updates if g'(w) < g(w)
             if (g_prime < g[w]) {
-                // Step 3.3.3.2.1. update g[w] to g_prime
+                // Step 3.3.3.2.1. update g(w) to g_prime
                 g[w] = g_prime;
                 // Step 3.3.3.2.2. calculate f(w) = g(w) + h(w)
                 double f_w = g[w] + h[w];
@@ -85,13 +85,13 @@ void A_star(const std::vector<tuple_item>& edges, std::unordered_map<char, doubl
                 };
                 // Step 3.3.3.2.3.2. remove if w exists in pq
                 pq.remove_if(first_is_w);
-                // Step 3.3.3.2.3.3. push {w, f[w]} into pq
+                // Step 3.3.3.2.3.3. push {w, f(w)} pair into pq
                 pq.emplace(w, f_w);
             }
         }
     }
 
-    // Step 4. return minimum path
+    // Step 4. print out shortest path and minimum distance
     std::cout << "The shortest path: (";
     for (char c : path) {
         std::cout << c << " -> ";
