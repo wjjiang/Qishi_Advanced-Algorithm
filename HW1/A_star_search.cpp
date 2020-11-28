@@ -5,74 +5,64 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
-using namespace std;
-using pair_item = pair<char, double>;
-using tuple_item = tuple<char, char, double>;
+using pair_item = std::pair<char, double>;
+using tuple_item = std::tuple<char, char, double>;
 
-// Step 1. modify STL's priority_queue template to include find & remove functionality
+// Step 1. modify STL's priority_queue template, can remove any element in heap
 template<typename T>
-class heapq : public priority_queue<T, vector<T>, greater<>> {
-public:
-    bool eleExist(const T& value) {
-        auto it = lower_bound(this->c.begin(), this->c.end(), value);
-        if (it != this->c.end())
-            return true;
-        else
-            return false;
-    }
-    
-    bool remove(const T& value) {
-        auto it = lower_bound(this->c.begin(), this->c.end(), value);
-        if (it != this->c.end()) {
-            this->c.erase(it);
-            make_heap(this->c.begin(), this->c.end(), this->comp);
-            return true;
-        }
-        else {
-            return false;
-        }
+class heapq : public std::priority_queue<T, std::vector<T>, decltype([](auto e1, auto e2){return e1.second > e2.second;})> {
+public:    
+    template <typename Pred>
+    bool remove_if(Pred pred) {
+        const auto old_size = this->size();
+        this->c.erase(std::remove_if(this->c.begin(), this->c.end(), pred), this->c.end());
+        if (old_size == this->size()) return false;
+        std::make_heap(this->c.begin(), this->c.end(), this->comp);
+        return true;
     }
 };
 
 // Step 2. construct edges
-unordered_map<char, vector<pair_item>> construct_edge(const vector<tuple_item>& edges) {
-    unordered_map<char, vector<item>> mapped_edges;
+std::unordered_map<char, std::vector<pair_item>> construct_edge(const std::vector<tuple_item>& edges) {
+    std::unordered_map<char, std::vector<pair_item>> mapped_edges;
     for (const auto& edge : edges) {
-        mapped_edges[get<0>(edge)].emplace_back(get<1>(edge), get<2>(edge));
-        mapped_edges[get<1>(edge)].emplace_back(get<0>(edge), get<2>(edge));
+        mapped_edges[std::get<0>(edge)].emplace_back(std::get<1>(edge), std::get<2>(edge));
+        mapped_edges[std::get<1>(edge)].emplace_back(std::get<0>(edge), std::get<2>(edge));
     }
     return mapped_edges;
 }
 
 // Step 3. construct A* function
-void A_star(int vertices, const vector<tuple_item>& edges, unordered_map<char, double>& h, char source, char target) {
+void A_star(const std::vector<tuple_item>& edges, std::unordered_map<char, double>& h, char source, char target) {
     // Step 3.1. convert edges into mapped format
-    unordered_map<char, vector<pair_item>> mapped_edges = construct_edge(edges);
+    std::unordered_map<char, std::vector<pair_item>> mapped_edges = construct_edge(edges);
 
     // Step 3.2. initialize
     // Step 3.2.1. X = {source}
-    unordered_set<char> X;
+    std::unordered_set<char> X;
     X.emplace(source);
     // Step 3.2.2. g() = infinity except g(source)=0
-    unordered_map<char, double> g;
+    std::unordered_map<char, double> g;
     for (auto it = h.begin(); it != h.end(); ++it)
-        g[it->first] = (it->first == source) ? 0 : numeric_limits<double>::max();
+        g[it->first] = (it->first == source) ? 0 : std::numeric_limits<double>::max();
     // Step 3.2.3. f(source) = h(source)
-    unordered_map<char, double> f;
+    std::unordered_map<char, double> f;
     f[source] = h[source];
     // Step 3.2.4. priority_queue w/ {source, f(source)}
     heapq<pair_item> pq;
     pq.emplace(source, f[source]);
 
-    // Step 3.3. iterate
+    // Step 3.3. iterate & record path
+    std::vector<char> path;
     while (pq.top().first != target) {
         // Step 3.3.1. get pq's top
         pair_item V = pq.top();
         pq.pop();
-        // Step 3.3.2. X to include V's 1st element
+        // Step 3.3.2. X to include V's 1st element, record into path
         char v = V.first;
-        double f_v = V.second;
         X.emplace(v);
+        path.emplace_back(v);
+    
         // Step 3.3.3. loop V's 1st element's edges
         for (auto ele : mapped_edges[v]) {
             char w = ele.first;
@@ -84,44 +74,51 @@ void A_star(int vertices, const vector<tuple_item>& edges, unordered_map<char, d
             double g_prime = g[v] + l_vw;
             // Step 3.3.3.2. 2 updates if g'(w) < g(w)
             if (g_prime < g[w]) {
-                // update g[w] to g_prime
+                // Step 3.3.3.2.1. update g[w] to g_prime
                 g[w] = g_prime;
-                // calculate f(w) = g(w) + h(w)
+                // Step 3.3.3.2.2. calculate f(w) = g(w) + h(w)
                 double f_w = g[w] + h[w];
-                // update priority_queue
-                if (pq.eleExist(w)) {
-                    pq.remove(w);
-                    pq.emplace(w, f_w);
-                }
+                // Step 3.3.3.2.3. update priority_queue
+                // Step 3.3.3.2.3.1. define lambda function for remove_if purpose
+                auto first_is_w = [w](const auto& p) {
+                    return p.first == w;
+                };
+                // Step 3.3.3.2.3.2. remove if w exists in pq
+                pq.remove_if(first_is_w);
+                // Step 3.3.3.2.3.3. push {w, f[w]} into pq
+                pq.emplace(w, f_w);
             }
         }
     }
 
     // Step 4. return minimum path
-    cout << "The minimum path = " << g[target] << endl;
+    std::cout << "The shortest path: (";
+    for (char c : path) {
+        std::cout << c << " -> ";
+    }
+    std::cout << target << ") has a total distance of " << g[target] << std::endl;
 }
 
 int main() {
-    int vertices = 10;
     // edges
-    vector<tuple_item> edges = {
-        make_tuple('A', 'B', 6),
-        make_tuple('A', 'F', 3),
-        make_tuple('B', 'C', 3),
-        make_tuple('B', 'D', 2),
-        make_tuple('C', 'D', 1),
-        make_tuple('C', 'E', 5),
-        make_tuple('D', 'E', 8),
-        make_tuple('E', 'I', 5),
-        make_tuple('E', 'J', 5),
-        make_tuple('F', 'G', 1),
-        make_tuple('F', 'H', 7),
-        make_tuple('G', 'I', 3),
-        make_tuple('H', 'I', 2),
-        make_tuple('I', 'J', 3)
+    std::vector<tuple_item> edges = {
+        {'A', 'B', 6},
+        {'A', 'F', 3},
+        {'B', 'C', 3},
+        {'B', 'D', 2},
+        {'C', 'D', 1},
+        {'C', 'E', 5},
+        {'D', 'E', 8},
+        {'E', 'I', 5},
+        {'E', 'J', 5},
+        {'F', 'G', 1},
+        {'F', 'H', 7},
+        {'G', 'I', 3},
+        {'H', 'I', 2},
+        {'I', 'J', 3}
     };
     // heuristics
-    unordered_map<char, double> h;
+    std::unordered_map<char, double> h;
     h['A'] = 10;
     h['B'] = 6;
     h['C'] = 5;
@@ -133,7 +130,7 @@ int main() {
     h['I'] = 1;
     h['J'] = 0;
     // Call A* function
-    A_star(vertices, edges, h, 'A', 'J');
+    A_star(edges, h, 'A', 'J');
 
     return 0;
 }
